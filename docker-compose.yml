@@ -46,7 +46,6 @@ services:
         echo 'Init done.';
       "
     volumes:
-      - mysql-data:/var/lib/mysql                 # Persistent storage buat data MySQL
       - ./db/penjualan.sql:/init/penjualan.sql    # Mount script init, Auto import SQL saat pertama kali dijalankan
     restart: "no"
     networks:

@@ -7,10 +7,10 @@ import jakarta.persistence.*;
 public class Barang {
 
     @Id
-    @Column(name = "id_barang")
+    @Column(name = "id_barang", length = 4)
     private String idBarang;
 
-    @Column(name = "nama")
+    @Column(name = "nama", length = 255)
     private String nama;
 
     @Column(name = "stok")
@@ -26,9 +26,9 @@ public class Barang {
     private Double diskon;
 
     @Column(name = "id_jenis_brg")
-    private Integer idJenisBarang;
+    private Byte idJenisBarang;
 
-    @Column(name = "id_pemasok")
+    @Column(name = "id_pemasok", length = 4)
     private String idPemasok;
 
     protected Barang() {
@@ -37,7 +37,7 @@ public class Barang {
 
     public Barang(String idBarang, String nama, Integer stok, Integer harga,
             Double persenLaba, Double diskon,
-            Integer idJenisBarang, String idPemasok) {
+            Byte idJenisBarang, String idPemasok) {
         this.idBarang = idBarang;
         this.nama = nama;
         this.stok = stok;
@@ -98,11 +98,11 @@ public class Barang {
         this.diskon = diskon;
     }
 
-    public Integer getIdJenisBarang() {
+    public Byte getIdJenisBarang() {
         return idJenisBarang;
     }
 
-    public void setIdJenisBarang(Integer idJenisBarang) {
+    public void setIdJenisBarang(Byte idJenisBarang) {
         this.idJenisBarang = idJenisBarang;
     }
 
