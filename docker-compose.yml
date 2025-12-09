@@ -3,10 +3,18 @@ services:
     build: .
     container_name: transaksi-app
     depends_on:
-      - mysql
-      - db-init        # pastikan init selesai dulu
+      mysql:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/penjualan?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Jakarta
+      SPRING_DATASOURCE_USERNAME: myuser
+      SPRING_DATASOURCE_PASSWORD: mypassword
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update 
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.MySQLDialect
     ports:
       - "8080:8080"
     networks:
@@ -19,7 +27,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: mydb
+      MYSQL_DATABASE: penjualan
       MYSQL_USER: myuser
       MYSQL_PASSWORD: mypassword
     volumes:
@@ -28,13 +36,19 @@ services:
       - "3306:3306"
     networks:
       - backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
 
   db-init:
     image: mysql:8.0
     container_name: mysql-init
     depends_on:
-      - mysql
-    # 💡 Tidak pakai -p di command line, pakai MYSQL_PWD
+      mysql:
+        condition: service_healthy
     environment:
       MYSQL_PWD: rootpassword
     command: >
@@ -44,7 +58,7 @@ services:
           sleep 1;
         done;
         echo 'MySQL is up, running init script...';
-        mysql -hmysql -uroot mydb < /init/penjualan.sql;
+        mysql -hmysql -uroot penjualan < /init/penjualan.sql;
         echo 'Init done.';
       "
     volumes:
@@ -59,7 +73,8 @@ services:
     container_name: phpmyadmin
     restart: unless-stopped
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
