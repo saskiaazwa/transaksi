@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 @Configuration
 public class OpenApiConfig {
 
@@ -32,7 +34,7 @@ public class OpenApiConfig {
                                                                 - Pagination opsional
                                                                 - Bulk operation bersifat transactional
                                                                 - Swagger hanya sebagai dokumentasi manusia
-                                                                """)
+                                                                        """)
                                                 .contact(new Contact()
                                                                 .name("Muhammad Azka Ramadhan")
                                                                 .email("m.azka@eng.ui.ac.id")));
@@ -40,16 +42,35 @@ public class OpenApiConfig {
 
         /*
          * ======================================================
-         * GROUP: BARANG
+         * ENTITY REGISTRY (1 BARIS = 1 TABEL)
+         * 
+         * SESUAIKAN DENGAN NAMA PATH YANG ADA DI REQUEST MAPPING. Contoh:
+         * static final List<String> ENTITIES = List.of(
+         * "barang",
+         * "pemasok",
+         * "pelanggan",
+         * "transaksi");
+         * 
+         * 
+         * ======================================================
+         */
+        static final List<String> ENTITIES = List.of(
+                        "barang");
+
+        /*
+         * ======================================================
+         * AUTO GROUP PER ENTITY
          * ======================================================
          */
         @Bean
-        public GroupedOpenApi barangApi() {
-                return GroupedOpenApi.builder()
-                                .group("Barang")
-                                .pathsToMatch("/api/barang/**")
-                                .addOpenApiCustomizer(barangCustomizer())
-                                .build();
+        public List<GroupedOpenApi> entityGroups() {
+                return ENTITIES.stream()
+                                .map(entity -> GroupedOpenApi.builder()
+                                                .group(capitalize(entity))
+                                                .pathsToMatch("/api/" + entity + "/**")
+                                                .addOpenApiCustomizer(customizer(entity))
+                                                .build())
+                                .toList();
         }
 
         /*
@@ -57,16 +78,16 @@ public class OpenApiConfig {
          * CUSTOMIZER
          * ======================================================
          */
-        private OpenApiCustomizer barangCustomizer() {
+        private OpenApiCustomizer customizer(String entity) {
                 return openAPI -> {
                         if (openAPI.getPaths() == null)
                                 return;
 
                         openAPI.getPaths().forEach((path, item) -> {
-                                normalize(path, item.getGet(), "GET");
-                                normalize(path, item.getPost(), "POST");
-                                normalize(path, item.getPut(), "PUT");
-                                normalize(path, item.getDelete(), "DELETE");
+                                enrich(entity, path, "GET", item.getGet());
+                                enrich(entity, path, "POST", item.getPost());
+                                enrich(entity, path, "PUT", item.getPut());
+                                enrich(entity, path, "DELETE", item.getDelete());
                         });
                 };
         }
@@ -76,20 +97,20 @@ public class OpenApiConfig {
          * ENRICHMENT CORE
          * ======================================================
          */
-        private void normalize(String rawPath, Operation op, String method) {
+        private void enrich(String entity, String rawPath, String method, Operation op) {
                 if (op == null)
                         return;
                 if (alreadyDocumented(op))
                         return;
 
-                String path = normalizePath(rawPath);
-                EndpointDoc doc = EndpointDoc.match(method, path);
+                String normalized = normalizePath(rawPath);
+                EndpointDoc doc = EndpointDoc.match(entity, method, normalized);
 
                 if (doc == null)
                         return;
 
-                op.setSummary(doc.summary());
-                op.setDescription(doc.description());
+                op.setSummary(doc.summary(entity));
+                op.setDescription(doc.description(entity));
         }
 
         private boolean alreadyDocumented(Operation op) {
@@ -103,91 +124,76 @@ public class OpenApiConfig {
                                 : path;
         }
 
+        private String capitalize(String s) {
+                return s.substring(0, 1).toUpperCase() + s.substring(1);
+        }
+
         /*
          * ======================================================
-         * DOCUMENTATION REGISTRY (NO IF-ELSE!)
+         * GENERIC DOCUMENTATION REGISTRY
          * ======================================================
          */
         enum EndpointDoc {
 
-                GET_ALL(
-                                "GET",
-                                "/api/barang",
-                                "Mengambil daftar semua barang",
-                                """
-                                                Mengambil seluruh data barang yang tersedia di sistem.
-                                                Mendukung pagination opsional melalui parameter `page` dan `size`.
-                                                """),
-
-                GET_ONE(
-                                "GET",
-                                "/api/barang/{id}",
-                                "Mengambil detail satu barang",
-                                "Mengambil detail satu barang berdasarkan ID."),
-
-                SEARCH(
-                                "GET",
-                                "/api/barang/search",
-                                "Mencari barang berdasarkan nama",
-                                "Mencari barang berdasarkan kata kunci pada nama."),
-
-                CREATE(
-                                "POST",
-                                "/api/barang",
-                                "Membuat barang baru",
-                                "Membuat satu data barang baru ke dalam sistem."),
-
-                BULK_CREATE(
-                                "POST",
-                                "/api/barang/bulk",
-                                "Membuat barang secara bulk",
-                                "Membuat banyak barang baru dalam satu transaksi."),
-
-                UPDATE(
-                                "PUT",
-                                "/api/barang/{id}",
-                                "Memperbarui data barang",
-                                "Memperbarui data barang berdasarkan ID."),
-
-                DELETE(
-                                "DELETE",
-                                "/api/barang/{id}",
-                                "Menghapus barang",
-                                "Menghapus satu barang berdasarkan ID."),
-
-                BULK_DELETE(
-                                "DELETE",
-                                "/api/barang/bulk",
-                                "Menghapus barang secara bulk",
-                                "Menghapus banyak barang berdasarkan daftar ID.");
+                GET_ALL("GET", "/api/{resource}"),
+                GET_ONE("GET", "/api/{resource}/{id}"),
+                SEARCH("GET", "/api/{resource}/search"),
+                CREATE("POST", "/api/{resource}"),
+                BULK_CREATE("POST", "/api/{resource}/bulk"),
+                UPDATE("PUT", "/api/{resource}/{id}"),
+                DELETE("DELETE", "/api/{resource}/{id}"),
+                BULK_DELETE("DELETE", "/api/{resource}/bulk");
 
                 private final String method;
-                private final String path;
-                private final String summary;
-                private final String description;
+                private final String pathPattern;
 
-                EndpointDoc(String method, String path, String summary, String description) {
+                EndpointDoc(String method, String pathPattern) {
                         this.method = method;
-                        this.path = path;
-                        this.summary = summary;
-                        this.description = description;
+                        this.pathPattern = pathPattern;
                 }
 
-                public String summary() {
-                        return summary;
-                }
-
-                public String description() {
-                        return description;
-                }
-
-                static EndpointDoc match(String method, String path) {
+                static EndpointDoc match(String resource, String method, String path) {
                         for (EndpointDoc doc : values()) {
-                                if (doc.method.equals(method) && doc.path.equals(path)) {
+                                String expected = doc.pathPattern.replace("{resource}", resource);
+                                if (doc.method.equals(method) && expected.equals(path)) {
                                         return doc;
                                 }
                         }
                         return null;
+                }
+
+                String summary(String resource) {
+                        return switch (this) {
+                                case GET_ALL -> "Mengambil daftar semua " + resource;
+                                case GET_ONE -> "Mengambil detail satu " + resource;
+                                case SEARCH -> "Mencari " + resource;
+                                case CREATE -> "Membuat " + resource + " baru";
+                                case BULK_CREATE -> "Membuat " + resource + " secara bulk";
+                                case UPDATE -> "Memperbarui " + resource;
+                                case DELETE -> "Menghapus " + resource;
+                                case BULK_DELETE -> "Menghapus " + resource + " secara bulk";
+                        };
+                }
+
+                String description(String resource) {
+                        return switch (this) {
+                                case GET_ALL ->
+                                        "Mengambil seluruh data " + resource + " yang tersedia di sistem.";
+                                case GET_ONE ->
+                                        "Mengambil detail satu " + resource + " berdasarkan ID.";
+                                case SEARCH ->
+                                        "Mencari " + resource + " berdasarkan kata kunci tertentu.";
+                                case CREATE ->
+                                        "Membuat satu data " + resource + " baru di sistem.";
+                                case BULK_CREATE ->
+                                        "Membuat banyak data " + resource + " dalam satu transaksi.";
+                                case UPDATE ->
+                                        "Memperbarui data " + resource + " berdasarkan ID.";
+                                case DELETE ->
+                                        "Menghapus satu data " + resource + " berdasarkan ID.";
+                                case BULK_DELETE ->
+                                        "Menghapus banyak data " + resource + " berdasarkan daftar ID.";
+                        };
                 }
         }
 }
