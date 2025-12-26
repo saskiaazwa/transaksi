@@ -21,6 +21,9 @@ public class BarangService {
         this.barangRepository = barangRepository;
     }
 
+    // ============================
+    // GET ALL
+    // ============================
     public List<Barang> getAll() {
         return barangRepository.findAll();
     }
@@ -31,17 +34,26 @@ public class BarangService {
                 .getContent();
     }
 
-    public Barang getById(String id) {
-        return barangRepository.findById(id)
-                .orElseThrow(() -> new DataNotFoundException("Barang", id));
+    // ============================
+    // GET BY ID
+    // ============================
+    public Barang getById(String idBarang) {
+        return barangRepository.findById(idBarang)
+                .orElseThrow(() -> new DataNotFoundException("Barang", idBarang));
     }
 
+    // ============================
+    // SEARCH
+    // ============================
     public List<Barang> searchByNama(String keyword) {
         return barangRepository.findByNamaContainingIgnoreCase(keyword);
     }
 
+    // ============================
     // CREATE
+    // ============================
     public Barang save(Barang barang) {
+
         if (barang.getIdBarang() == null || barang.getIdBarang().isBlank()) {
             throw new IllegalArgumentException("idBarang wajib diisi");
         }
@@ -53,9 +65,17 @@ public class BarangService {
         return barangRepository.save(barang);
     }
 
-    @Transactional
+    // ============================
+    // CREATE BULK
+    // ============================
     public List<Barang> saveBulk(List<Barang> barangList) {
+
+        if (barangList == null || barangList.isEmpty()) {
+            throw new IllegalArgumentException("Data barang tidak boleh kosong");
+        }
+
         for (Barang barang : barangList) {
+
             if (barang.getIdBarang() == null || barang.getIdBarang().isBlank()) {
                 throw new IllegalArgumentException("idBarang wajib diisi untuk setiap barang");
             }
@@ -64,12 +84,16 @@ public class BarangService {
                 throw new DataAlreadyExistsException("Barang", barang.getIdBarang());
             }
         }
+
         return barangRepository.saveAll(barangList);
     }
 
+    // ============================
     // UPDATE
-    public Barang update(String id, Barang updated) {
-        Barang existing = getById(id); // akan lempar DataNotFoundException
+    // ============================
+    public Barang update(String idBarang, Barang updated) {
+
+        Barang existing = getById(idBarang); // otomatis validasi existence
 
         existing.setNama(updated.getNama());
         existing.setStok(updated.getStok());
@@ -82,32 +106,40 @@ public class BarangService {
         return barangRepository.save(existing);
     }
 
-    // DELETE
-    @Transactional
+    // ============================
+    // DELETE BULK
+    // ============================
     public void deleteBulk(List<String> ids) {
 
         if (ids == null || ids.isEmpty()) {
             throw new IllegalArgumentException("List ID tidak boleh kosong");
         }
 
-        // hard limit untuk keamanan
+        // safety limit
         if (ids.size() > 100) {
             throw new IllegalArgumentException("Maksimal 100 data per bulk delete");
         }
 
-        // validasi: pastikan semua ID ada
+        // validasi semua ID ada
         long existingCount = barangRepository.countByIdBarangIn(ids);
         if (existingCount != ids.size()) {
-            throw new IllegalStateException("Sebagian ID tidak ditemukan, operasi dibatalkan");
+            throw new IllegalStateException(
+                "Sebagian ID tidak ditemukan, operasi bulk delete dibatalkan"
+            );
         }
 
         barangRepository.deleteAllById(ids);
     }
 
-    public void delete(String id) {
-        if (!barangRepository.existsById(id)) {
-            throw new DataNotFoundException("Barang", id);
+    // ============================
+    // DELETE BY ID
+    // ============================
+    public void delete(String idBarang) {
+
+        if (!barangRepository.existsById(idBarang)) {
+            throw new DataNotFoundException("Barang", idBarang);
         }
-        barangRepository.deleteById(id);
+
+        barangRepository.deleteById(idBarang);
     }
 }
